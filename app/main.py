@@ -85,61 +85,119 @@ def download_media():
     return Response(generate(is_admin, command, download_folder, session_id), mimetype='text/event-stream')
 
 def generate(is_admin, command, download_folder, session_id):
-    album_name = None  # Placeholder for album/playlist name
+    album_name = None
     try:
+        print(f"🎧 Command being run: {' '.join(command)}")
+        print(f"📁 Download folder: {download_folder}")
+
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
         for line in process.stdout:
+            print(f"▶️ {line.strip()}")
             yield f"data: {line.strip()}\n\n"
 
-            # Look for the playlist or album name in SpotDL output
             match = re.search(r'Found \d+ songs in (.+?) \(', line)
             if match:
                 album_name = match.group(1).strip()
-            
+
         process.stdout.close()
         process.wait()
 
         if process.returncode == 0:
-            downloaded_files = os.listdir(download_folder)
+            downloaded_files = []
+            for root, _, files in os.walk(download_folder):
+                for file in files:
+                    full_path = os.path.join(root, file)
+                    print(f"✅ Found file: {full_path}")
+                    downloaded_files.append(full_path)
 
-            if len(downloaded_files) > 1 and not is_admin:
-                # Use album or playlist name if available for the ZIP filename
+            valid_audio_files = [f for f in downloaded_files if f.lower().endswith(('.mp3', '.m4a', '.flac', '.wav', '.ogg'))]
+
+            if not valid_audio_files:
+                print("⚠️ No valid audio files downloaded.")
+                yield f"data: Error: No valid audio files found. Please check the link.\n\n"
+                return
+
+            if len(valid_audio_files) > 1 and not is_admin:
                 zip_filename = f"{album_name}.zip" if album_name else "playlist.zip"
                 zip_path = os.path.join(download_folder, zip_filename)
                 with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    # Walk through all files and directories in download_folder
                     for root, _, files in os.walk(download_folder):
                         for file in files:
-                            file_path = os.path.join(root, file)
-                            # Add the file to the zip with its relative path from download_folder
-                            arcname = os.path.relpath(file_path, start=download_folder)
-                            zipf.write(file_path, arcname=arcname)  # Keep directory structure in zip
+                            if file.lower().endswith(('.mp3', '.m4a', '.flac', '.wav', '.ogg')):
+                                file_path = os.path.join(root, file)
+                                arcname = os.path.relpath(file_path, start=download_folder)
+                                zipf.write(file_path, arcname=arcname)
+                                print(f"📦 Added to zip: {arcname}")
 
+                print(f"📤 Yielding zip download path: {session_id}/{zip_filename}")
                 yield f"data: DOWNLOAD: {session_id}/{zip_filename}\n\n"
-            elif downloaded_files and not is_admin:
-                yield f"data: DOWNLOAD: {session_id}/{downloaded_files[0]}\n\n"
+
+            elif valid_audio_files and not is_admin:
+                relative_path = os.path.relpath(valid_audio_files[0], start=download_folder)
+                print(f"📤 Yielding file download path: {session_id}/{relative_path}")
+                from urllib.parse import quote
+                encoded_path = quote(relative_path)
+                print(f"📤 Yielding encoded path: {session_id}/{encoded_path}")
+                yield f"data: DOWNLOAD: {session_id}/{encoded_path}\n\n"
+
+
             else:
+                print("✅ Admin mode download complete.")
                 yield "data: Download completed. Files saved to server directory.\n\n"
 
             if not is_admin:
                 threading.Thread(target=delayed_delete, args=(download_folder,)).start()
 
         else:
+            print(f"❌ Download command exited with code {process.returncode}")
             yield f"data: Error: Download exited with code {process.returncode}.\n\n"
 
     except Exception as e:
+        print(f"💥 Exception in generate(): {str(e)}")
         yield f"data: Error: {str(e)}\n\n"
 
 def delayed_delete(folder_path):
     time.sleep(300)
     shutil.rmtree(folder_path, ignore_errors=True)
 
-@app.route('/downloads/<session_id>/<filename>')
+def emergency_cleanup_container_downloads():
+    print("🚨 Running backup cleanup in /app/downloads")
+    for folder in os.listdir(BASE_DOWNLOAD_FOLDER):
+        folder_path = os.path.join(BASE_DOWNLOAD_FOLDER, folder)
+        try:
+            shutil.rmtree(folder_path)
+            print(f"🗑️ Cleaned: {folder_path}")
+        except Exception as e:
+            print(f"⚠️ Could not delete {folder_path}: {e}")
+
+def schedule_emergency_cleanup(interval_seconds=3600):
+    def loop():
+        while True:
+            time.sleep(interval_seconds)
+            emergency_cleanup_container_downloads()
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
+@app.route('/downloads/<session_id>/<path:filename>')
 def serve_download(session_id, filename):
     session_download_folder = os.path.join(BASE_DOWNLOAD_FOLDER, session_id)
+    full_path = os.path.join(session_download_folder, filename)
+
+    print(f"📥 Requested filename: {filename}")
+    print(f"📁 Resolved full path: {full_path}")
+
+    if ".." in filename or filename.startswith("/"):
+        return "Invalid filename", 400
+
+    if not os.path.isfile(full_path):
+        print("❌ File does not exist!")
+        return "File not found", 404
+
     return send_from_directory(session_download_folder, filename, as_attachment=True)
 
+schedule_emergency_cleanup()
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
 

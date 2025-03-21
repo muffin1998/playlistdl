@@ -24,15 +24,18 @@ async function download() {
 
     eventSource.onmessage = function(event) {
         const log = event.data;
-        
+
         if (log.startsWith("DOWNLOAD:")) {
             // Download link received, set progress to 100%
             progressBar.value = 100;
 
-            const path = log.split("DOWNLOAD: ")[1];
+            const path = log.split("DOWNLOAD: ")[1].trim();  // ✅ define path BEFORE using it
+            console.log("Download path from server:", path); // ✅ now it's safe to use
+
             const downloadLink = document.createElement('a');
             downloadLink.href = `/downloads/${path}`;
-            downloadLink.download = path.split('/').pop(); // Extract the filename for download
+            downloadLink.download = decodeURIComponent(path.split('/').pop());
+
             downloadLink.innerText = "Click to download your file";
             document.getElementById('result').appendChild(downloadLink);
             downloadLink.click();

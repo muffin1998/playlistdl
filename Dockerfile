@@ -1,5 +1,7 @@
+
 # Use a base image with Python
 FROM python:3.12-alpine
+ENV PYTHONUNBUFFERED=1
 
 # Install dependencies
 RUN apk add --no-cache ca-certificates curl python3-dev git ffmpeg yt-dlp
