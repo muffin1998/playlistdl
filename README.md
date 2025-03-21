@@ -29,8 +29,8 @@ services:
       - "4827:5000"
     environment:
       #Direct Server Download
-      - ADMIN_USERNAME=Tanner23456 #Insert unique username here!
-      - ADMIN_PASSWORD=Tn7281994! #Insert unique password here!
+      - ADMIN_USERNAME= #Insert unique username here!
+      - ADMIN_PASSWORD= #Insert unique password here!
 
       - AUDIO_DOWNLOAD_PATH=${AUDIO_DOWNLOAD_PATH}  # Use the env variable
       - CLEANUP_INTERVAL=300  # Optional
@@ -83,3 +83,10 @@ services:
 
 - **Permissions**: Ensure the `downloads` directory has the correct permissions for Docker to write files.
 - **Port Conflicts**: If port 5000 is in use, adjust the port mapping in the `docker-compose.yaml` file.
+
+## Support This Project
+
+If you like this project, consider supporting it with a donation!
+
+[![Donate via Stripe](https://img.shields.io/badge/Donate-Stripe-blue?style=flat&logo=stripe)](https://buy.stripe.com/6oEdU3dWS19C556dQQ)
+
