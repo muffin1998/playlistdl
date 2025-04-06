@@ -62,33 +62,30 @@ def download_media():
         return jsonify({"status": "error", "output": "No link provided"}), 400
 
     session_id = str(uuid.uuid4())
-    download_folder = AUDIO_DOWNLOAD_PATH if is_logged_in() else os.path.join(BASE_DOWNLOAD_FOLDER, session_id)
-    os.makedirs(download_folder, exist_ok=True)
+    temp_download_folder = os.path.join(BASE_DOWNLOAD_FOLDER, session_id)
+    os.makedirs(temp_download_folder, exist_ok=True)
 
-    # Set up command for Spotify links with spotdl
     if "spotify" in spotify_link:
         command = [
             'spotdl',
-            '--output', f"{download_folder}/{{artist}}/{{album}}/{{track-number}} - {{title}}.{{output-ext}}",
+            '--output', f"{temp_download_folder}/{{artist}}/{{album}}/{{title}}.{{output-ext}}",
             spotify_link
         ]
-
-    # Set up command for YouTube links with yt-dlp
     else:
         command = [
             'yt-dlp', '-x', '--audio-format', 'mp3',
-            '-o', f"{download_folder}/%(uploader)s/%(album)s/%(track_number)s - %(title)s.%(ext)s",
+            '-o', f"{temp_download_folder}/%(uploader)s/%(album)s/%(title)s.%(ext)s",
             spotify_link
         ]
 
     is_admin = is_logged_in()
-    return Response(generate(is_admin, command, download_folder, session_id), mimetype='text/event-stream')
+    return Response(generate(is_admin, command, temp_download_folder, session_id), mimetype='text/event-stream')
 
-def generate(is_admin, command, download_folder, session_id):
+def generate(is_admin, command, temp_download_folder, session_id):
     album_name = None
     try:
         print(f"🎧 Command being run: {' '.join(command)}")
-        print(f"📁 Download folder: {download_folder}")
+        print(f"📁 Temp download folder: {temp_download_folder}")
 
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
@@ -105,56 +102,51 @@ def generate(is_admin, command, download_folder, session_id):
 
         if process.returncode == 0:
             downloaded_files = []
-            for root, _, files in os.walk(download_folder):
+            for root, _, files in os.walk(temp_download_folder):
                 for file in files:
                     full_path = os.path.join(root, file)
-                    print(f"✅ Found file: {full_path}")
                     downloaded_files.append(full_path)
 
             valid_audio_files = [f for f in downloaded_files if f.lower().endswith(('.mp3', '.m4a', '.flac', '.wav', '.ogg'))]
 
             if not valid_audio_files:
-                print("⚠️ No valid audio files downloaded.")
                 yield f"data: Error: No valid audio files found. Please check the link.\n\n"
                 return
 
-            if len(valid_audio_files) > 1 and not is_admin:
-                zip_filename = f"{album_name}.zip" if album_name else "playlist.zip"
-                zip_path = os.path.join(download_folder, zip_filename)
-                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for root, _, files in os.walk(download_folder):
-                        for file in files:
-                            if file.lower().endswith(('.mp3', '.m4a', '.flac', '.wav', '.ogg')):
-                                file_path = os.path.join(root, file)
-                                arcname = os.path.relpath(file_path, start=download_folder)
-                                zipf.write(file_path, arcname=arcname)
-                                print(f"📦 Added to zip: {arcname}")
+            if is_admin:
+                # Move downloaded files to permanent admin directory
+                for file_path in valid_audio_files:
+                    relative_path = os.path.relpath(file_path, temp_download_folder)
+                    target_path = os.path.join(AUDIO_DOWNLOAD_PATH, relative_path)
+                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    shutil.move(file_path, target_path)
+                    print(f"🚚 Moved to admin directory: {target_path}")
 
-                print(f"📤 Yielding zip download path: {session_id}/{zip_filename}")
+                yield "data: Download completed. Files saved to server directory.\n\n"
+                shutil.rmtree(temp_download_folder, ignore_errors=True)
+
+            elif len(valid_audio_files) > 1:
+                zip_filename = f"{album_name}.zip" if album_name else "playlist.zip"
+                zip_path = os.path.join(temp_download_folder, zip_filename)
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for file_path in valid_audio_files:
+                        arcname = os.path.relpath(file_path, start=temp_download_folder)
+                        zipf.write(file_path, arcname=arcname)
+
                 yield f"data: DOWNLOAD: {session_id}/{zip_filename}\n\n"
 
-            elif valid_audio_files and not is_admin:
-                relative_path = os.path.relpath(valid_audio_files[0], start=download_folder)
-                print(f"📤 Yielding file download path: {session_id}/{relative_path}")
+            else:
+                relative_path = os.path.relpath(valid_audio_files[0], start=temp_download_folder)
                 from urllib.parse import quote
                 encoded_path = quote(relative_path)
-                print(f"📤 Yielding encoded path: {session_id}/{encoded_path}")
                 yield f"data: DOWNLOAD: {session_id}/{encoded_path}\n\n"
 
-
-            else:
-                print("✅ Admin mode download complete.")
-                yield "data: Download completed. Files saved to server directory.\n\n"
-
-            if not is_admin:
-                threading.Thread(target=delayed_delete, args=(download_folder,)).start()
+                threading.Thread(target=delayed_delete, args=(temp_download_folder,)).start()
 
         else:
-            print(f"❌ Download command exited with code {process.returncode}")
             yield f"data: Error: Download exited with code {process.returncode}.\n\n"
 
     except Exception as e:
-        print(f"💥 Exception in generate(): {str(e)}")
         yield f"data: Error: {str(e)}\n\n"
 
 def delayed_delete(folder_path):
