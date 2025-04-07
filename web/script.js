@@ -92,33 +92,37 @@ function closeLoginModal() {
 }
 
 // Check login status, toggle button text, and show/hide admin message
+
 async function checkLoginStatus() {
     const response = await fetch('/check-login');
-    const data = await response.json();  
+    const data = await response.json();
     const adminButton = document.getElementById('adminButton');
-    const adminMessage = document.getElementById('adminMessage');  // Select the message element
+    const adminMessage = document.getElementById('adminMessage');
+    const adminControls = document.getElementById('adminControls');
 
     if (data.loggedIn) {
         adminButton.innerText = "Log Out";
-        adminMessage.style.display = "block";  // Show the message when logged in
+        adminMessage.style.display = "block";
+        adminControls.style.display = "block";
     } else {
         adminButton.innerText = "Admin";
-        adminMessage.style.display = "none";   // Hide the message when logged out
+        adminMessage.style.display = "none";
+        adminControls.style.display = "none";
     }
 }
 
-// Log out function
+
 async function logout() {
     const response = await fetch('/logout', { method: 'POST' });
     const data = await response.json();
 
     if (data.success) {
-        document.getElementById('adminButton').innerText = "Admin";  // Reset button text
-        document.getElementById('adminMessage').style.display = "none";  // Hide the message on logout
+        await checkLoginStatus();  // ✅ Add this line
     }
 }
 
 // After successful login, change button text to "Log Out" and show the message
+
 async function login() {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
@@ -132,11 +136,37 @@ async function login() {
     const data = await response.json();
     if (data.success) {
         document.getElementById('loginMessage').innerText = "Login successful!";
-        document.getElementById('adminButton').innerText = "Log Out";  // Update button text
-        document.getElementById('adminMessage').style.display = "block";  // Show the message on login
         closeLoginModal();
+        await checkLoginStatus();  // ✅ Add this line
     } else {
         document.getElementById('loginMessage').innerText = "Login failed. Try again.";
+    }
+}
+
+
+async function setDownloadPath() {
+    const path = document.getElementById('downloadPath').value;
+    const messageDiv = document.getElementById('pathMessage');
+
+    if (!path) {
+        messageDiv.innerText = "Path cannot be empty.";
+        return;
+    }
+
+    const response = await fetch('/set-download-path', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path})
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+        messageDiv.innerText = `Download path set successfully to: ${data.new_path}`;
+        messageDiv.style.color = "lime";
+    } else {
+        messageDiv.innerText = `Error: ${data.message}`;
+        messageDiv.style.color = "red";
     }
 }
 

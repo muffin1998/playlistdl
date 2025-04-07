@@ -13,6 +13,7 @@ BASE_DOWNLOAD_FOLDER = '/app/downloads'
 AUDIO_DOWNLOAD_PATH = os.getenv('AUDIO_DOWNLOAD_PATH', BASE_DOWNLOAD_FOLDER)
 ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+ADMIN_DOWNLOAD_PATH = AUDIO_DOWNLOAD_PATH  # default to .env path
 
 sessions = {}
 
@@ -93,6 +94,7 @@ def generate(is_admin, command, temp_download_folder, session_id):
             print(f"▶️ {line.strip()}")
             yield f"data: {line.strip()}\n\n"
 
+            # Capture album name for zipping later
             match = re.search(r'Found \d+ songs in (.+?) \(', line)
             if match:
                 album_name = match.group(1).strip()
@@ -100,54 +102,72 @@ def generate(is_admin, command, temp_download_folder, session_id):
         process.stdout.close()
         process.wait()
 
-        if process.returncode == 0:
-            downloaded_files = []
-            for root, _, files in os.walk(temp_download_folder):
-                for file in files:
-                    full_path = os.path.join(root, file)
-                    downloaded_files.append(full_path)
+        if process.returncode != 0:
+            yield f"data: Error: Download exited with code {process.returncode}.\n\n"
+            return
 
-            valid_audio_files = [f for f in downloaded_files if f.lower().endswith(('.mp3', '.m4a', '.flac', '.wav', '.ogg'))]
+        # Gather all downloaded audio files
+        downloaded_files = []
+        for root, _, files in os.walk(temp_download_folder):
+            for file in files:
+                full_path = os.path.join(root, file)
+                print(f"📄 Found file: {full_path}")
+                downloaded_files.append(full_path)
 
-            if not valid_audio_files:
-                yield f"data: Error: No valid audio files found. Please check the link.\n\n"
-                return
+        valid_audio_files = [f for f in downloaded_files if f.lower().endswith(('.mp3', '.m4a', '.flac', '.wav', '.ogg'))]
 
-            if is_admin:
-                # Move downloaded files to permanent admin directory
-                for file_path in valid_audio_files:
+        if not valid_audio_files:
+            yield f"data: Error: No valid audio files found. Please check the link.\n\n"
+            return
+
+        # ✅ ADMIN HANDLING
+        if is_admin:
+            for file_path in valid_audio_files:
+                filename = os.path.basename(file_path)
+
+                if 'General Conference' in filename and '｜' in filename:
+                    speaker_name = filename.split('｜')[0].strip()
+                    target_path = os.path.join(ADMIN_DOWNLOAD_PATH, speaker_name, filename)
+                    print(f"🚚 Moving GC file to: {target_path}")
+                else:
                     relative_path = os.path.relpath(file_path, temp_download_folder)
-                    target_path = os.path.join(AUDIO_DOWNLOAD_PATH, relative_path)
-                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    target_path = os.path.join(ADMIN_DOWNLOAD_PATH, relative_path)
+                    print(f"🚚 Moving to default admin path: {target_path}")
+
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                try:
                     shutil.move(file_path, target_path)
-                    print(f"🚚 Moved to admin directory: {target_path}")
+                except Exception as move_error:
+                    print(f"❌ Failed to move {file_path} to {target_path}: {move_error}")
 
-                yield "data: Download completed. Files saved to server directory.\n\n"
-                shutil.rmtree(temp_download_folder, ignore_errors=True)
 
-            elif len(valid_audio_files) > 1:
-                zip_filename = f"{album_name}.zip" if album_name else "playlist.zip"
-                zip_path = os.path.join(temp_download_folder, zip_filename)
-                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for file_path in valid_audio_files:
-                        arcname = os.path.relpath(file_path, start=temp_download_folder)
-                        zipf.write(file_path, arcname=arcname)
+            shutil.rmtree(temp_download_folder, ignore_errors=True)
+            yield "data: Download completed. Files saved to server directory.\n\n"
+            return  # ✅ Don’t try to serve/move anything else
 
-                yield f"data: DOWNLOAD: {session_id}/{zip_filename}\n\n"
+        # ✅ PUBLIC USER HANDLING
+        if len(valid_audio_files) > 1:
+            zip_filename = f"{album_name}.zip" if album_name else "playlist.zip"
+            zip_path = os.path.join(temp_download_folder, zip_filename)
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in valid_audio_files:
+                    arcname = os.path.relpath(file_path, start=temp_download_folder)
+                    zipf.write(file_path, arcname=arcname)
 
-            else:
-                relative_path = os.path.relpath(valid_audio_files[0], start=temp_download_folder)
-                from urllib.parse import quote
-                encoded_path = quote(relative_path)
-                yield f"data: DOWNLOAD: {session_id}/{encoded_path}\n\n"
-
-                threading.Thread(target=delayed_delete, args=(temp_download_folder,)).start()
+            yield f"data: DOWNLOAD: {session_id}/{zip_filename}\n\n"
 
         else:
-            yield f"data: Error: Download exited with code {process.returncode}.\n\n"
+            from urllib.parse import quote
+            relative_path = os.path.relpath(valid_audio_files[0], start=temp_download_folder)
+            encoded_path = quote(relative_path)
+            yield f"data: DOWNLOAD: {session_id}/{encoded_path}\n\n"
+
+            # Schedule cleanup of the temp folder
+            threading.Thread(target=delayed_delete, args=(temp_download_folder,)).start()
 
     except Exception as e:
         yield f"data: Error: {str(e)}\n\n"
+
 
 def delayed_delete(folder_path):
     time.sleep(300)
@@ -170,6 +190,28 @@ def schedule_emergency_cleanup(interval_seconds=3600):
             emergency_cleanup_container_downloads()
 
     threading.Thread(target=loop, daemon=True).start()
+
+@app.route('/set-download-path', methods=['POST'])
+def set_download_path():
+    global ADMIN_DOWNLOAD_PATH
+    if not is_logged_in():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    data = request.get_json()
+    new_path = data.get('path')
+
+    if not new_path:
+        return jsonify({"success": False, "message": "Path cannot be empty."}), 400
+
+    # Optional: Validate the path, ensure it exists
+    if not os.path.isdir(new_path):
+        try:
+            os.makedirs(new_path, exist_ok=True)
+        except Exception as e:
+            return jsonify({"success": False, "message": f"Cannot create path: {str(e)}"}), 500
+
+    ADMIN_DOWNLOAD_PATH = new_path
+    return jsonify({"success": True, "new_path": ADMIN_DOWNLOAD_PATH})
 
 
 @app.route('/downloads/<session_id>/<path:filename>')

@@ -14,12 +14,18 @@
         <h1>Audio Downloader</h1>
         <div id="adminMessage" style="display: none; color: red; font-weight: bold;">
     	Now downloading directly to your server!
+	
 	</div>
 	<input type="text" id="spotifyLink" placeholder="Paste your song link or playlist link here">
         <button onclick="download()">Download</button>
 
         <!-- Progress bar -->
         <progress id="progress" value="0" max="100" style="display:none;"></progress>
+	<div id="adminControls" style="display:none;">
+    	    <input type="text" id="downloadPath" placeholder="Enter server download path">
+    	    <button onclick="setDownloadPath()">Set Download Path</button>
+    	    <div id="pathMessage"></div>
+	</div>
 
         <div id="result"></div>
 
