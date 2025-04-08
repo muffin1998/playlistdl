@@ -53,6 +53,7 @@ services:
    - Click the **Admin** button to log in with your credentials.
    - Once logged in, a message will appear in red indicating, "Now downloading directly to your server!"
    - Enter the playlist or album link as usual, and files will be saved to the designated admin folder on your server.
+   - The UI will also dispaly a text box to input a folder path. This is to alter the path the files are saved to without having to restart the container. The folder can only be changed to another folder within the mounted directory.
 <!--
 3. **Admin Mode**:
    - Click the **Admin** button to log in with your credentials.
