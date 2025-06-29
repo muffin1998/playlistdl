@@ -10,9 +10,9 @@ import time
 import re  # Add regex for capturing album/playlist name
 
 app = Flask(__name__, static_folder='web')
-BASE_DOWNLOAD_FOLDER = '/tmp/playlist-dl/app/downloads'
-COOKIE_FOLDER = '/tmp/playlist-dl/config/cookie'
-CONFIG_FOLDER = '/tmp/playlist-dl/config'
+BASE_DOWNLOAD_FOLDER = '/app/downloads'
+COOKIE_FOLDER = '/config/cookie'
+CONFIG_FOLDER = '/config'
 AUDIO_DOWNLOAD_PATH = os.getenv('AUDIO_DOWNLOAD_PATH', BASE_DOWNLOAD_FOLDER)
 ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
