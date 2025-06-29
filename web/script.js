@@ -79,16 +79,38 @@ function handleAdminButton() {
     }
 }
 
+function handleSettingButton() {
+    showSettingModal();
+}
+
 // Show login modal
 function showLoginModal() {
     const loginModal = document.getElementById('loginModal');
     loginModal.classList.add('show');  // Show modal on button click
 }
 
+// Show setting modal
+function showSettingModal() {
+    const config = JSON.parse(window.sessionStorage.getItem('playlistdl-config'))
+    const settingModal = document.getElementById('settings');
+    const useCookie = document.getElementById('use-cookie');
+    if (config['use_cookie'] != undefined && config['use_cookie'] != 'none') {
+        useCookie.checked = true
+    } else {
+        useCookie.checked = false
+    }
+    settingModal.classList.add('show');  // Show modal on button click
+}
+
 // Hide login modal
 function closeLoginModal() {
     const loginModal = document.getElementById('loginModal');
     loginModal.classList.remove('show');  // Hide modal when closed
+}
+
+function closeSettingModal() {
+    const settingModal = document.getElementById('settings');
+    settingModal.classList.remove('show');  // Hide modal when closed
 }
 
 // Check login status, toggle button text, and show/hide admin message
@@ -170,6 +192,53 @@ async function setDownloadPath() {
     }
 }
 
-// Call checkLoginStatus on page load to set initial button state and message visibility
-window.onload = checkLoginStatus;
+function setUseCookie() {
+    const enabled = document.getElementById('use-cookie').checked
+    if (enabled) {
+        enableCookie()
+    } else {
+        disableCookie()
+    }
+}
 
+function enableCookie() {
+    const upload = document.getElementById('cookie-upload')
+    upload.click();
+}
+
+function disableCookie() {
+    fetch('/disable-cookie', {
+        method: 'POST'
+    });
+}
+
+async function uploadCookie() {
+    const files = document.getElementById('cookie-upload').files
+    if (files.length == 0) {
+        return
+    }
+
+    var data = new FormData()
+    data.append('cookie', files[0])
+    await fetch('/enable-cookie', {
+        method: 'POST',
+        body: data
+    });
+}
+
+async function loadConifg() {
+    const sessionStorage = window.sessionStorage
+    const response = await fetch('read-config', {
+        method: 'GET'
+    })
+    const data = await response.json()
+    if (data.success) {
+        sessionStorage.setItem('playlistdl-config', JSON.stringify(data.data))
+    }
+}
+
+// Call checkLoginStatus on page load to set initial button state and message visibility
+window.onload = async function() {
+    checkLoginStatus()
+    loadConifg()
+}

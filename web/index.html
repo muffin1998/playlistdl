@@ -5,27 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Downloader</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.loli.net/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <!-- Admin button in the top right corner -->
-	<button id="adminButton" onclick="handleAdminButton()">Admin</button>
+            <!-- Admin button in the top right corner -->
+        <div id="header">
+            <button id="settingButton" onclick="handleSettingButton()">
+                <span class="material-icons">settings</span>
+            </button>
+            <button id="adminButton" onclick="handleAdminButton()">
+                <span class="material-icons">account_circle</span>
+            </button>
+        </div>
+
 
         <h1>Audio Downloader</h1>
         <div id="adminMessage" style="display: none; color: red; font-weight: bold;">
-    	Now downloading directly to your server!
-	
-	</div>
-	<input type="text" id="spotifyLink" placeholder="Paste your song link or playlist link here">
-        <button onclick="download()">Download</button>
+        Now downloading directly to your server!
+        
+        </div>
+	    <input type="text" id="spotifyLink" placeholder="Paste your song link or playlist link here">
+        <button class="button" onclick="download()">Download</button>
 
         <!-- Progress bar -->
         <progress id="progress" value="0" max="100" style="display:none;"></progress>
-	<div id="adminControls" style="display:none;">
-    	    <input type="text" id="downloadPath" placeholder="Enter server download path">
-    	    <button onclick="setDownloadPath()">Set Download Path</button>
-    	    <div id="pathMessage"></div>
-	</div>
+        <div id="adminControls" style="display:none;">
+                <input type="text" id="downloadPath" placeholder="Enter server download path">
+                <button class="button"  onclick="setDownloadPath()">Set Download Path</button>
+                <div id="pathMessage"></div>
+        </div>
 
         <div id="result"></div>
 
@@ -41,8 +50,23 @@
             <h2>Admin Login</h2>
             <input type="text" id="username" placeholder="Username">
             <input type="password" id="password" placeholder="Password">
-            <button onclick="login()">Login</button>
+            <button class="button"  onclick="login()">Login</button>
             <div id="loginMessage"></div>
+        </div>
+    </div>
+
+    <div id="settings" class="modal">
+        <div class="modal-content">
+            <span onclick="closeSettingModal()" class="close">&times;</span>
+            <h2>Settings</h2>
+            <div class="setting-item">
+                <label class="switch">
+                    <input id="use-cookie" type="checkbox" onchange="setUseCookie()">
+                    <span class="slider"></span>
+                </label>
+                <h3>Enable Cookies</h3>
+                <form><input type="file" id="cookie-upload" name="cookies" style="display: none;" onchange="uploadCookie()"></form>
+            </div>
         </div>
     </div>
 

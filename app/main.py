@@ -1,6 +1,7 @@
 from flask import Flask, send_from_directory, jsonify, request, Response
 import subprocess
 import os
+import json
 import zipfile
 import uuid
 import shutil
@@ -9,15 +10,23 @@ import time
 import re  # Add regex for capturing album/playlist name
 
 app = Flask(__name__, static_folder='web')
-BASE_DOWNLOAD_FOLDER = '/app/downloads'
+BASE_DOWNLOAD_FOLDER = '/tmp/playlist-dl/app/downloads'
+COOKIE_FOLDER = '/tmp/playlist-dl/config/cookie'
+CONFIG_FOLDER = '/tmp/playlist-dl/config'
 AUDIO_DOWNLOAD_PATH = os.getenv('AUDIO_DOWNLOAD_PATH', BASE_DOWNLOAD_FOLDER)
 ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 ADMIN_DOWNLOAD_PATH = AUDIO_DOWNLOAD_PATH  # default to .env path
 
+config = {
+    "use_cookie": "none"
+}
+
 sessions = {}
 
 os.makedirs(BASE_DOWNLOAD_FOLDER, exist_ok=True)
+os.makedirs(COOKIE_FOLDER, exist_ok=True)
+os.makedirs(CONFIG_FOLDER, exist_ok=True)
 
 @app.route('/')
 def serve_index():
@@ -55,9 +64,26 @@ def check_login():
     is_logged_in_status = is_logged_in()
     return jsonify({"loggedIn": is_logged_in_status})
 
+@app.route('/read-config')
+def read_config():
+    return jsonify({"success": True, "data": get_config()})
+
+@app.route('/enable-cookie', methods=['POST'])
+def enable_cookie():
+    cookie = request.files['cookie']
+    cookie.save(COOKIE_FOLDER + "/cookie")
+    update_config('use_cookie', COOKIE_FOLDER + "/cookie")
+    return jsonify({"success": True})
+
+@app.route('/disable-cookie', methods=['POST'])
+def diable_cookie():
+    update_config('use_cookie', 'none')
+    return jsonify({"success": True})
+
 
 @app.route('/download')
 def download_media():
+    config = get_config()
     spotify_link = request.args.get('spotify_link')
     if not spotify_link:
         return jsonify({"status": "error", "output": "No link provided"}), 400
@@ -73,11 +99,13 @@ def download_media():
             spotify_link
         ]
     else:
-        command = [
-            'yt-dlp', '-x', '--audio-format', 'mp3',
+        command = ['yt-dlp']
+        if config['use_cookie'] != 'none':
+            command += ['--cookies', config['use_cookie']]
+        command += ['-x', '--audio-format', 'mp3',
             '-o', f"{temp_download_folder}/%(uploader)s/%(album)s/%(title)s.%(ext)s",
-            spotify_link
-        ]
+            spotify_link]
+    print(command)
 
     is_admin = is_logged_in()
     return Response(generate(is_admin, command, temp_download_folder, session_id), mimetype='text/event-stream')
@@ -231,7 +259,28 @@ def serve_download(session_id, filename):
 
     return send_from_directory(session_download_folder, filename, as_attachment=True)
 
+def get_config():
+    global config
+    return config
+
+def update_config(key, value):
+    global config
+    config[key] = value
+    with open(CONFIG_FOLDER + "/config.json", 'w') as f:
+        json.dump(config, f)
+
+def init_config():
+    global config
+    with open(CONFIG_FOLDER + "/config.json") as f:
+        local_config = json.load(f)
+
+    # read configuration from local file
+    for (key, value) in local_config.items():
+        if key in config.keys() and value is not None:
+            config[key] = value
+
 schedule_emergency_cleanup()
 if __name__ == '__main__':
+    init_config()
     app.run(host='0.0.0.0', port=5000)
 

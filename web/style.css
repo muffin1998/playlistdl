@@ -50,7 +50,7 @@ input[type="text"] {
     margin-bottom: 20px;
 }
 
-button {
+.button {
     padding: 10px 20px;
     border: none;
     background-color: #007bff;
@@ -60,7 +60,7 @@ button {
     cursor: pointer;
 }
 
-button:hover {
+.button:hover {
     background-color: #0056b3;
 }
 
@@ -82,16 +82,24 @@ button:hover {
 }
 
 /* Admin button styling */
-#adminButton {
+#header {
     position: absolute;
     top: 10px;
     right: 10px;
     padding: 8px 16px;
-    background-color: #007bff;
     color: #fff;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    button {
+        padding: 10px 10px;
+        border: none;
+        background-color: #1e1e1e;
+        color: #fff;
+        font-size: 16px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
 }
 
 /* Modal styling */
@@ -121,6 +129,7 @@ button:hover {
     text-align: center;
     width: 80%;
     max-width: 400px;
+    transition: .4s;
 }
 
 input[type="text"], input[type="password"] {
@@ -133,25 +142,94 @@ input[type="text"], input[type="password"] {
     color: #f4f4f9;
 }
 
-button {
-    background-color: #007bff;
-    color: #fff;
-    border: none;
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-    border-radius: 4px;
-}
-
-button:hover {
-    background-color: #0056b3;
-}
-
 .close {
     position: absolute;
     top: 10px;
     right: 10px;
     font-size: 20px;
     cursor: pointer;
+}
+
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;  /* Preferred icon size */
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+
+  /* Support for all WebKit browsers. */
+  -webkit-font-smoothing: antialiased;
+  /* Support for Safari and Chrome. */
+  text-rendering: optimizeLegibility;
+
+  /* Support for Firefox. */
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Support for IE. */
+  font-feature-settings: 'liga';
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 30px;
+
+  input {
+    opacity: 0;
+    width: 0px;
+    height: 0px;
+  }
+
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    border-radius: 30px;
+    transition: .4s;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 30px;
+    transition: .4s;
+  }
+
+  input:checked + .slider {
+    background-color: #2196F3;
+  }
+
+  input:focus + .slider {
+    box-shadow: 0 0 1px #2196F3;
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(20px);
+  }
+} 
+
+.setting-item {
+  display: flex; 
+  align-items: center;
+  margin: 10px auto;
+  h3 {
+    margin: auto 10px;
+  }
 }
 
